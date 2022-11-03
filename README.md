@@ -15,10 +15,7 @@
 2. Создайте и активируйте виртуальное окружение:  
 `python -m venv .env`  
 `source .env/Scripts/activate`  
-3. Примените миграции:  
-`docker-compose exec backend python manage.py makemigrations`
-`docker-compose exec backend python manage.py migrate --no-input`
-4. Установите зависимости:  
+3. Установите зависимости:  
 `pip install -r requirements.txt`
 
 ## Примеры комманд  
