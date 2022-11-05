@@ -2,39 +2,29 @@ import logging
 import re
 import requests_cache
 
-from bs4 import BeautifulSoup
-from tqdm import tqdm
 from urllib.parse import urljoin
 
 from configs import configure_argument_parser, configure_logging
-from constants import BASE_DIR, MAIN_DOC_URL, PEP_URL, EXPECTED_STATUS
+from constants import (
+    BASE_DIR, DOWNLOADS_URL, MAIN_DOC_URL, PEP_URL, EXPECTED_STATUS,
+)
 from outputs import control_output
-from utils import find_tag, get_response
+from utils import cook_soup, find_tag
 
 
 def whats_new(session):
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    response = get_response(session, whats_new_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = cook_soup(session, whats_new_url)
 
-    main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
-
-    div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
-
-    sections_by_python = div_with_ul.find_all(
-        'li', attrs={'class': 'toctree-l1'})
+    sections_by_python = soup.select(
+        '#what-s-new-in-python div.toctree-wrapper li.toctree-l1')
 
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
-    for section in tqdm(sections_by_python):
+    for section in sections_by_python:
         version_a_tag = section.find('a')
         href = version_a_tag['href']
         version_link = urljoin(whats_new_url, href)
-        response = get_response(session, version_link)
-        if response is None:
-            continue
-        soup = BeautifulSoup(response.text, features='lxml')
+        soup = cook_soup(session, version_link)
         h1 = find_tag(soup, 'h1')
         dl_text = soup.find('dl').text.replace('\n', ' ')
         results.append(
@@ -44,10 +34,7 @@ def whats_new(session):
 
 
 def latest_versions(session):
-    response = get_response(session, MAIN_DOC_URL)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = cook_soup(session, MAIN_DOC_URL)
     sidebar = find_tag(soup, 'div', {'class': 'sphinxsidebarwrapper'})
     ul_tags = sidebar.find_all('ul')
     for ul in ul_tags:
@@ -55,7 +42,7 @@ def latest_versions(session):
             a_tags = ul.find_all('a')
             break
     else:
-        raise Exception('Ничего не нашлось')
+        raise LookupError('Ничего не нашлось')
 
     results = [('Ссылка на документацию', 'Версия', 'Статус')]
     pattern = r'Python (?P<version>\d\.\d+) \((?P<status>.*)\)'
@@ -73,19 +60,14 @@ def latest_versions(session):
 
 
 def download(session):
-    downloads_url = urljoin(MAIN_DOC_URL, 'download.html')
-    response = get_response(session, downloads_url)
-    if response is None:
-        return
-    soup = BeautifulSoup(response.text, features='lxml')
+    soup = cook_soup(session, DOWNLOADS_URL)
 
     main_tag = find_tag(soup, 'div', {'role': 'main'})
     table_tag = find_tag(main_tag, 'table', {'class': 'docutils'})
     pdf_a4_tag = find_tag(
         table_tag, 'a', {'href': re.compile(r'.+pdf-a4\.zip$')}
         )
-    pdf_a4_link = pdf_a4_tag['href']
-    archive_url = urljoin(downloads_url, pdf_a4_link)
+    archive_url = urljoin(DOWNLOADS_URL, pdf_a4_tag['href'])
     filename = archive_url.split('/')[-1]
 
     downloads_dir = BASE_DIR / 'downloads'
@@ -104,11 +86,7 @@ def pep(session):
     status_sum = {}
     pep_sum = 0
 
-    response = get_response(session, PEP_URL)
-    if response is None:
-        return None
-
-    soup = BeautifulSoup(response.text, 'lxml')
+    soup = cook_soup(session, PEP_URL)
 
     pep_section_tag = find_tag(
         soup, 'section', attrs={'id': 'numerical-index'})
@@ -117,18 +95,14 @@ def pep(session):
 
     results = [('Статус', 'Количество')]
 
-    for pep_tag in tqdm(pep_tags):
+    for pep_tag in pep_tags:
         status_tag = find_tag(pep_tag, 'td')
         general_status = status_tag.text[1:]
         a_tag = find_tag(pep_tag, 'a')
         href = a_tag['href']
 
         pep_link = urljoin(PEP_URL, href)
-        response = get_response(session, pep_link)
-        if response is None:
-            return None
-
-        soup = BeautifulSoup(response.text, 'lxml')
+        soup = cook_soup(session, pep_link)
 
         info_tags = soup.find_all('dt')
 
