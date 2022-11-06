@@ -21,8 +21,6 @@ def pretty_output(results):
 
 
 def file_output(results, cli_args):
-    # Пришлось оставить, иначе не проходили тесты
-    # (должна быть именно конструкция с BASE_DIR):
     results_dir = BASE_DIR / 'results'
     results_dir.mkdir(exist_ok=True)
     parser_mode = cli_args.mode
